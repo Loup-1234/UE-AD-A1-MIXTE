@@ -11,14 +11,17 @@ type_defs = load_schema_from_path("booking.graphql")
 query = QueryType()
 booking = ObjectType("Booking")
 query.set_field('booking_with_id', r.booking_with_id)
+query.set_field('all_bookings', r.all_bookings)
+query.set_field('detailed_booking_with_id', r.detailed_booking_with_id)
 mutation = MutationType()
-mutation.set_field('update_booking_date', r.update_booking_date)
+mutation.set_field('create_booking', r.create_booking)
+mutation.set_field('delete_booking', r.delete_booking)
 schema = make_executable_schema(type_defs, booking, query, mutation)
 
 # root message
 @app.route("/", methods=['GET'])
 def home():
-    return make_response("<h1 style='color:blue'>Welcome to the Movie service!</h1>",200)
+    return make_response("<h1 style='color:blue'>Welcome to the Booking service!</h1>", 200)
 
 # graphql entry points
 @app.route('/graphql', methods=['POST'])
@@ -34,5 +37,5 @@ def graphql_server():
     return jsonify(result), status_code
 
 if __name__ == "__main__":
-    print("Server running in port %s"%(PORT))
+    print("Server running in port %s" % (PORT))
     app.run(host=HOST, port=PORT)
