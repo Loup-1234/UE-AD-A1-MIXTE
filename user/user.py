@@ -8,12 +8,12 @@ app = Flask(__name__)
 PORT = 3203
 HOST = '0.0.0.0'
 
-with open('{}/databases/users.json'.format("."), "r") as jsf:
+with open('{}/data/users.json'.format("."), "r") as jsf:
    users = json.load(jsf)["users"]
    print(users)
 
 def write(users):
-   with open('{}/databases/users.json'.format("."), "w") as f:
+   with open('{}/data/users.json'.format("."), "w") as f:
       full = {}
       full['users'] = users
       json.dump(full, f)

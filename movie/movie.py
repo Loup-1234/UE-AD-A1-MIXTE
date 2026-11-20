@@ -1,5 +1,5 @@
 from ariadne import graphql_sync, make_executable_schema, load_schema_from_path, ObjectType, QueryType, MutationType
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 
 import resolvers as r
 

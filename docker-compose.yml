@@ -3,14 +3,23 @@ services:
     build: ./booking/
     ports:
       - "3002:3002"
+    environment:
+      - MOVIE_SERVICE_URL=http://movie:3001/graphql
+      - SCHEDULE_SERVICE_URL=http://schedule:3202
+    depends_on:
+      - movie
+      - schedule
+
   movie:
     build: ./movie/
     ports:
       - "3001:3001"
+
   schedule:
     build: ./schedule/
     ports:
       - "3202:3202"
+
   user:
     build: ./user/
     ports:

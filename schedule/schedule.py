@@ -7,12 +7,12 @@ app = Flask(__name__)
 PORT = 3202
 HOST = '0.0.0.0'
 
-with open('{}/databases/times.json'.format("."), "r") as jsf:
+with open('{}/data/times.json'.format("."), "r") as jsf:
    schedule = json.load(jsf)["schedule"]
    print(schedule)
 
 def write(schedule):
-   with open('{}/databases/times.json'.format("."), "w") as f:
+   with open('{}/data/times.json'.format("."), "w") as f:
       full = {}
       full['schedule'] = schedule
       json.dump(full, f)

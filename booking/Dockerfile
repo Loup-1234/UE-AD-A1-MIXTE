@@ -1,6 +1,7 @@
-FROM python:3.8-alpine
+FROM python:3.11-slim
 WORKDIR /app
-COPY requirements.txt /app
-RUN pip install -r requirements.txt
-ADD . /app/
-CMD ["python","-u","booking.py"]
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 3002
+CMD ["python", "-u", "booking.py"]
