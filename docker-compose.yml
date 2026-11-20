@@ -1,6 +1,8 @@
 services:
   booking:
-    build: ./booking/
+    build:
+      context: .
+      dockerfile: booking/Dockerfile
     ports:
       - "3002:3002"
     environment:
@@ -11,16 +13,22 @@ services:
       - schedule
 
   movie:
-    build: ./movie/
+    build:
+      context: .
+      dockerfile: movie/Dockerfile
     ports:
       - "3001:3001"
 
   schedule:
-    build: ./schedule/
+    build:
+      context: .
+      dockerfile: schedule/Dockerfile
     ports:
       - "3202:3202"
 
   user:
-    build: ./user/
+    build:
+      context: .
+      dockerfile: user/Dockerfile
     ports:
       - "3203:3203"
