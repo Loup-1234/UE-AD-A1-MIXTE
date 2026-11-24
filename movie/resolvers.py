@@ -1,19 +1,31 @@
 import json
 import uuid
+import os
+from pymongo import MongoClient
+
+MONGO_URI = os.getenv(
+    "MONGO_URI",
+    "mongodb://root:example@localhost:27017/"
+)
+
+client = MongoClient(MONGO_URI)
+
+db = client["movies"]
+collection = db["movies"]
+with open("./data/movies.json", "r") as file:
+    data = json.load(file)
+    movies = data.get("movies", [])
+
+if collection.count_documents({}) == 0 and movies:
+    collection.insert_many(movies)
+    print("Films insérés dans MongoDB !")
 
 def movie_with_id(_, info, _id):
-    with open('{}/data/movies.json'.format("."), "r") as file:
-        movies = json.load(file)
-        for movie in movies.get('movies', []):
-            if movie['id'] == _id:
-                return movie
-    return None
+    return collection.find_one({"id": _id})
 
 def all_movies(_, info):
-    with open('{}/data/movies.json'.format("."), "r") as file:
-        movies = json.load(file)
-        return movies.get('movies', [])
-
+    return list(collection.find())
+    
 def actors_with_id(_, info, _id):
     with open('{}/data/actors.json'.format("."), "r") as file:
         actors = json.load(file)
@@ -28,64 +40,50 @@ def all_actors(_, info):
         return actors.get('actors', [])
 
 def create_movie(_, info, _title, _director, _rating, _id=None):
-    with open('{}/data/movies.json'.format("."), "r") as rfile:
-        data = json.load(rfile)
     movie_id = _id if _id else str(uuid.uuid4())
+
     new_movie = {
         "id": movie_id,
         "title": _title,
         "director": _director,
         "rating": _rating
     }
-    data.setdefault("movies", []).append(new_movie)
-    with open('{}/data/movies.json'.format("."), "w") as wfile:
-        json.dump(data, wfile, indent=2)
+
+    collection.insert_one(new_movie)
+
     return new_movie
 
 def update_movie_rate(_, info, _id, _rate):
-    with open('{}/data/movies.json'.format("."), "r") as rfile:
-        data = json.load(rfile)
-    target = None
-    for movie in data.get('movies', []):
-        if movie['id'] == _id:
-            movie['rating'] = _rate
-            target = movie
-            break
-    if target:
-        with open('{}/data/movies.json'.format("."), "w") as wfile:
-            json.dump(data, wfile, indent=2)
-    return target
+    collection.update_one(
+        {"id": _id},
+        {"$set": {"rating": float(_rate)}}
+    )
+
+    return collection.find_one({"id": _id})
 
 def update_movie(_, info, _id, _title=None, _director=None, _rating=None):
-    with open('{}/data/movies.json'.format("."), "r") as rfile:
-        data = json.load(rfile)
-    target = None
-    for movie in data.get('movies', []):
-        if movie['id'] == _id:
-            if _title is not None:
-                movie['title'] = _title
-            if _director is not None:
-                movie['director'] = _director
-            if _rating is not None:
-                movie['rating'] = _rating
-            target = movie
-            break
-    if target:
-        with open('{}/data/movies.json'.format("."), "w") as wfile:
-            json.dump(data, wfile, indent=2)
-    return target
+    newvalues = {}
+
+    if _title is not None:
+        newvalues["title"] = _title
+
+    if _director is not None:
+        newvalues["director"] = _director
+
+    if _rating is not None:
+        newvalues["rating"] = float(_rating)
+
+    if newvalues:
+        collection.update_one(
+            {"id": _id},
+            {"$set": newvalues}
+        )
+
+    return collection.find_one({"id": _id})
 
 def delete_movie(_, info, _id):
-    with open('{}/data/movies.json'.format("."), "r") as rfile:
-        data = json.load(rfile)
-    movies = data.get('movies', [])
-    total_before = len(movies)
-    data['movies'] = [m for m in movies if m['id'] != _id]
-    if len(data['movies']) < total_before:
-        with open('{}/data/movies.json'.format("."), "w") as wfile:
-            json.dump(data, wfile, indent=2)
-        return True
-    return False
+    result = collection.delete_one({"id": _id})
+    return result.deleted_count > 0
 
 def resolve_actors_in_movie(movie, info):
     with open('{}/data/actors.json'.format("."), "r") as file:
