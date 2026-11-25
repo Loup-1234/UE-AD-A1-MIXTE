@@ -12,6 +12,8 @@ client = MongoClient(MONGO_URI)
 
 db = client["movies"]
 collection = db["movies"]
+actors_collection = db["actors"]
+
 with open("./data/movies.json", "r") as file:
     data = json.load(file)
     movies = data.get("movies", [])
@@ -20,6 +22,14 @@ if collection.count_documents({}) == 0 and movies:
     collection.insert_many(movies)
     print("Films insérés dans MongoDB !")
 
+with open("./data/actors.json", "r") as file:
+    actors_data = json.load(file)
+    actors = actors_data.get("actors", [])
+
+if actors_collection.count_documents({}) == 0 and actors:
+    actors_collection.insert_many(actors)
+    print("Acteurs insérés dans MongoDB !")
+
 def movie_with_id(_, info, _id):
     return collection.find_one({"id": _id})
 
@@ -27,17 +37,10 @@ def all_movies(_, info):
     return list(collection.find())
     
 def actors_with_id(_, info, _id):
-    with open('{}/data/actors.json'.format("."), "r") as file:
-        actors = json.load(file)
-        for actor in actors.get('actors', []):
-            if actor['id'] == _id:
-                return actor
-    return None
+    return actors_collection.find_one({"id": _id})
 
 def all_actors(_, info):
-    with open('{}/data/actors.json'.format("."), "r") as file:
-        actors = json.load(file)
-        return actors.get('actors', [])
+    return list(actors_collection.find())
 
 def create_movie(_, info, _title, _director, _rating, _id=None):
     movie_id = _id if _id else str(uuid.uuid4())
@@ -86,7 +89,4 @@ def delete_movie(_, info, _id):
     return result.deleted_count > 0
 
 def resolve_actors_in_movie(movie, info):
-    with open('{}/data/actors.json'.format("."), "r") as file:
-        actors = json.load(file)
-        result = [actor for actor in actors.get('actors', []) if movie['id'] in actor.get('films', [])]
-        return result
+    return list(actors_collection.find({"films": movie["id"]}))

@@ -3,11 +3,17 @@ import os
 import requests
 from pymongo import MongoClient
 
-MOVIE_SERVICE_URL = os.environ.get("MOVIE_SERVICE_URL", "http://127.0.0.1:3001/graphql")
-SCHEDULE_SERVICE_URL = os.environ.get("SCHEDULE_SERVICE_URL", "http://127.0.0.1:3202")
-MONGO_URI = os.environ.get(
+MONGO_URI = os.getenv(
     "MONGO_URI",
     "mongodb://root:example@localhost:27017/"
+)
+MOVIE_SERVICE_URL = os.getenv(
+    "MOVIE_SERVICE_URL",
+    "http://127.0.0.1:3001/graphql"
+)
+SCHEDULE_SERVICE_URL = os.getenv(
+    "SCHEDULE_SERVICE_URL",
+    "http://127.0.0.1:3202"
 )
 
 client = MongoClient(MONGO_URI)
@@ -15,7 +21,31 @@ client = MongoClient(MONGO_URI)
 db = client["booking"]
 collection = db["bookings"]
 
+with open("./data/bookings.json", "r") as file:
+    data = json.load(file)
+    bookings = data.get("bookings", [])
 
+if collection.count_documents({}) == 0 and bookings:
+    collection.insert_many(bookings)
+    print("Réservations insérées dans MongoDB !")
+
+MOVIE_QUERY = """
+query GetMovie($id: String!) {
+    movie_with_id(_id: $id) {
+        id
+        title
+        director
+        rating
+        actors {
+            id
+            firstname
+            lastname
+            birthyear
+            films
+        }
+    }
+}
+"""
 
 def booking_with_id(_, info, _userid):
     return collection.find_one({"userid": _userid})
@@ -23,131 +53,70 @@ def booking_with_id(_, info, _userid):
 def all_bookings(_, info):
     return list(collection.find())
 
-def _get_movie_details(movie_id):
-    query = """
-    query GetMovie($id: String!) {
-        movie_with_id(_id: $id) {
-            id
-            title
-            director
-            rating
-            actors {
-                id
-                firstname
-                lastname
-                birthyear
-                films
-            }
-        }
-    }
-    """
-    try:
-        response = requests.post(
-            MOVIE_SERVICE_URL,
-            json={"query": query, "variables": {"id": movie_id}},
-            timeout=5
-        )
-        if response.status_code == 200:
-            res_json = response.json()
-            return res_json.get("data", {}).get("movie_with_id")
-    except Exception:
-        pass
-    return None
-
 def detailed_booking_with_id(_, info, _userid):
     booking = collection.find_one({"userid": _userid})
-    if booking:
-        detailed_dates = []
-        for d in booking.get('dates', []):
-            movies_details = []
-            for movie_id in d.get('movies', []):
-                movie_detail = _get_movie_details(movie_id)
-                if movie_detail:
-                    movies_details.append(movie_detail)
-            detailed_dates.append({
-                "date": d.get("date"),
-                "movies": movies_details
-            })
-        return {
-            "userid": booking["userid"],
-            "dates": detailed_dates
-        }
-    return None
+    if not booking:
+        return None
+
+    detailed_dates = []
+    for date_entry in booking.get("dates", []):
+        movies = [get_movie(movie_id) for movie_id in date_entry.get("movies", [])]
+        detailed_dates.append({
+            "date": date_entry.get("date"),
+            "movies": [movie for movie in movies if movie]
+        })
+
+    return {
+        "userid": booking["userid"],
+        "dates": detailed_dates
+    }
 
 def create_booking(_, info, _userid, _date, _movie_id):
-    try:
-        sched_resp = requests.get(f"{SCHEDULE_SERVICE_URL}/schedule/{_movie_id}", timeout=5)
-        if sched_resp.status_code != 200:
-            return None
-        dates = sched_resp.json()
-        if not isinstance(dates, list) or _date not in dates:
-            return None
-    except Exception:
+    if not is_scheduled(_movie_id, _date) or not get_movie(_movie_id):
         return None
 
-    movie_query = """
-    query CheckMovie($id: String!) {
-        movie_with_id(_id: $id) {
-            id
+    result = collection.update_one(
+        {"userid": _userid, "dates.date": _date},
+        {"$addToSet": {"dates.$.movies": _movie_id}}
+    )
+
+    if result.matched_count == 0:
+        new_date = {
+            "date": _date,
+            "movies": [_movie_id]
         }
-    }
-    """
-    try:
-        movie_resp = requests.post(
-            MOVIE_SERVICE_URL,
-            json={"query": movie_query, "variables": {"id": _movie_id}},
-            timeout=5
+        collection.update_one(
+            {"userid": _userid},
+            {"$push": {"dates": new_date}},
+            upsert=True
         )
-        if movie_resp.status_code != 200:
-            return None
-        movie_data = movie_resp.json().get("data", {}).get("movie_with_id")
-        if not movie_data:
-            return None
-    except Exception:
-        return None
-
-    
-    user_booking = collection.find_one({"userid": _userid})
-
-    if not user_booking:
-        user_booking = {
-            "userid": _userid,
-            "dates": [
-                {
-                    "date": _date,
-                    "movies": [_movie_id]
-                }
-            ]
-        }
-        collection.insert_one(user_booking)
-
-    else:
-        date_entry = next(
-            (d for d in user_booking.get("dates", []) if d["date"] == _date),
-            None
-        )
-
-        if date_entry:
-            if _movie_id not in date_entry["movies"]:
-                collection.update_one(
-                    {"userid": _userid, "dates.date": _date},
-                    {"$addToSet": {"dates.$.movies": _movie_id}}
-                )
-        else:
-            collection.update_one(
-                {"userid": _userid},
-                {"$push": {
-                    "dates": {
-                        "date": _date,
-                        "movies": [_movie_id]
-                    }
-                }}
-            )
 
     return collection.find_one({"userid": _userid})
-
-
 
 def delete_booking(_, info, _userid):
     result = collection.delete_one({"userid": _userid})
     return result.deleted_count > 0
+
+def get_movie(movie_id):
+    try:
+        response = requests.post(
+            MOVIE_SERVICE_URL,
+            json={"query": MOVIE_QUERY, "variables": {"id": movie_id}},
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json().get("data", {}).get("movie_with_id")
+    except Exception:
+        pass
+    return None
+
+def is_scheduled(movie_id, date):
+    try:
+        response = requests.get(
+            f"{SCHEDULE_SERVICE_URL}/schedule/{movie_id}",
+            timeout=5
+        )
+        dates = response.json() if response.status_code == 200 else []
+        return isinstance(dates, list) and date in dates
+    except Exception:
+        return False
