@@ -1,0 +1,29 @@
+info:
+  name: Vérifier le compte d'Alice
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: http://localhost:3203/user/alice_martin
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+        test("Profil d'Alice conforme", function () {
+          expect(res.body.userid).to.equal("alice_martin");
+          expect(res.body.name).to.equal("Alice Martin");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

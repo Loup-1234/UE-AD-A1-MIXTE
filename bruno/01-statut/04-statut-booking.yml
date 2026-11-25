@@ -1,0 +1,28 @@
+info:
+  name: Statut du service Booking
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "http://localhost:3002/"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Booking service returns 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+        test("Booking welcome message is present", function () {
+          expect(res.body).to.include("Welcome to the Booking service!");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

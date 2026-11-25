@@ -1,0 +1,38 @@
+info:
+  name: Créer le compte d'Alice
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:3203/user/alice_martin
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Alice Martin",
+        "last_active": 1732536000
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+        test("Confirmation de création du compte", function () {
+          expect(res.body.message).to.equal("User added/updated successfully");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

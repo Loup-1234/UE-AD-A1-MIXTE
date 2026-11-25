@@ -1,0 +1,56 @@
+info:
+  name: Consulter la réservation détaillée d'Alice
+  type: graphql
+  seq: 3
+
+graphql:
+  method: POST
+  url: http://localhost:3002/graphql
+  body:
+    query: |-
+      query GetDetailedBooking($userid: String!) {
+        detailed_booking_with_id(_userid: $userid) {
+          userid
+          dates {
+            date
+            movies {
+              id
+              title
+              director
+              rating
+            }
+          }
+        }
+      }
+    variables: |-
+      {
+        "userid": "alice_martin"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200 sans erreur GraphQL", function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.errors).to.be.undefined;
+        });
+
+        test("Récapitulatif enrichi avec les détails d'Interstellar", function () {
+          const detailed = res.body.data.detailed_booking_with_id;
+          expect(detailed).to.not.be.null;
+          expect(detailed.userid).to.equal("alice_martin");
+          const entry = detailed.dates.find((d) => d.date === "20261201");
+          expect(entry).to.not.be.undefined;
+          expect(entry.movies[0].title).to.equal("Interstellar");
+          expect(entry.movies[0].director).to.equal("Christopher Nolan");
+          expect(entry.movies[0].rating).to.equal(9.0);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -1,0 +1,51 @@
+info:
+  name: Réserver Interstellar pour Alice
+  type: graphql
+  seq: 2
+
+graphql:
+  method: POST
+  url: http://localhost:3002/graphql
+  body:
+    query: |-
+      mutation CreateBooking($userid: String!, $date: String!, $movieId: String!) {
+        create_booking(_userid: $userid, _date: $date, _movie_id: $movieId) {
+          userid
+          dates {
+            date
+            movies
+          }
+        }
+      }
+    variables: |-
+      {
+        "userid": "alice_martin",
+        "date": "20261201",
+        "movieId": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200 sans erreur GraphQL", function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.errors).to.be.undefined;
+        });
+
+        test("Réservation confirmée pour Alice le 20261201", function () {
+          const booking = res.body.data.create_booking;
+          expect(booking).to.not.be.null;
+          expect(booking.userid).to.equal("alice_martin");
+          const entry = booking.dates.find((d) => d.date === "20261201");
+          expect(entry).to.not.be.undefined;
+          expect(entry.movies).to.include("f47ac10b-58cc-4372-a567-0e02b2c3d479");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

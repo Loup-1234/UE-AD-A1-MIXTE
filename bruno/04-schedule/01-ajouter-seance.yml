@@ -1,0 +1,37 @@
+info:
+  name: Programmer une séance d'Interstellar
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:3202/schedule/f47ac10b-58cc-4372-a567-0e02b2c3d479
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "date": "20261201"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+        test("Confirmation de programmation", function () {
+          expect(res.body.message).to.equal("Schedule added successfully");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
