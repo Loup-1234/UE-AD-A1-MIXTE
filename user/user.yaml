@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: API du service User
+  description: >
+    Service REST de gestion des utilisateurs.
+    Communique avec le service Booking (GraphQL) pour récupérer le profil d'un utilisateur
+    enrichi de ses réservations détaillées.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3203
+    description: Serveur local User
+tags:
+  - name: Santé
+    description: État du service
+  - name: Utilisateurs
+    description: CRUD utilisateurs et recoupement avec les réservations
+paths:
+  /:
+    get:
+      tags: [Santé]
+      summary: Message d'accueil du service User
+      responses:
+        '200':
+          description: Service opérationnel
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<h1 style='color:blue'>Welcome to the User service!</h1>"
+
+  /json:
+    get:
+      tags: [Utilisateurs]
+      summary: Lister tous les utilisateurs (Admin)
+      description: "Retourne l'ensemble des utilisateurs enregistrés. Nécessite le header `X-Admin: true`."
+      parameters:
+        - $ref: '#/components/parameters/AdminHeader'
+      responses:
+        '200':
+          description: Liste complète des utilisateurs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+              example:
+                - id: "chris_rivers"
+                  name: "Chris Rivers"
+                  last_active: 1360031010
+        '403':
+          description: Privilèges administrateur requis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Admin privileges required"
+
+  /user/{userid}:
+    get:
+      tags: [Utilisateurs]
+      summary: Récupérer un utilisateur par son identifiant
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Profil utilisateur trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: "alice_martin"
+                name: "Alice Martin"
+                last_active: 1732536000
+        '404':
+          description: Utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User ID not found"
+
+    post:
+      tags: [Utilisateurs]
+      summary: Créer un nouvel utilisateur
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        description: Données de création de l'utilisateur
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateInput'
+            example:
+              name: "Alice Martin"
+              last_active: 1732536000
+      responses:
+        '200':
+          description: Utilisateur créé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMutationResponse'
+              example:
+                message: "User added successfully"
+                user:
+                  id: "alice_martin"
+                  name: "Alice Martin"
+                  last_active: 1732536000
+        '400':
+          description: Données invalides (`name` manquant)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid payload: 'name' is required"
+        '409':
+          description: Identifiant déjà existant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User ID already exists"
+
+    put:
+      tags: [Utilisateurs]
+      summary: Mettre à jour un utilisateur existant
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        description: Champs à modifier (`name` et/ou `last_active`)
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateInput'
+            example:
+              name: "Alice M."
+              last_active: 1732622400
+      responses:
+        '200':
+          description: Utilisateur mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMutationResponse'
+              example:
+                message: "User updated successfully"
+                user:
+                  id: "alice_martin"
+                  name: "Alice M."
+                  last_active: 1732622400
+        '400':
+          description: Charge utile JSON invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid JSON payload"
+        '404':
+          description: Utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User ID not found"
+
+    delete:
+      tags: [Utilisateurs]
+      summary: Supprimer un utilisateur (Admin)
+      description: "Supprime l'utilisateur spécifié. Nécessite le header `X-Admin: true`."
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+        - $ref: '#/components/parameters/AdminHeader'
+      responses:
+        '200':
+          description: Utilisateur supprimé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "User deleted successfully"
+        '403':
+          description: Privilèges administrateur requis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Admin privileges required"
+        '404':
+          description: Utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User ID not found"
+
+  /user/{userid}/bookings:
+    get:
+      tags: [Utilisateurs]
+      summary: Récupérer un utilisateur et ses réservations détaillées (recoupement Booking + Movie)
+      description: >
+        Point d'entrée de recoupement : récupère le profil de l'utilisateur et interroge le service
+        Booking (GraphQL `detailed_booking_with_id`) pour retourner ses réservations enrichies
+        avec les détails des films et acteurs.
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: Profil utilisateur enrichi de ses réservations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithBookings'
+              example:
+                id: "alice_martin"
+                name: "Alice Martin"
+                last_active: 1732536000
+                bookings:
+                  - date: "20261201"
+                    movies:
+                      - id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                        title: "Interstellar"
+                        director: "Christopher Nolan"
+                        rating: 9.0
+                        actors: []
+        '404':
+          description: Utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User ID not found"
+        '503':
+          description: Service Booking indisponible ou en erreur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Booking service unavailable"
+
+components:
+  parameters:
+    UserIdParam:
+      name: userid
+      in: path
+      required: true
+      description: Identifiant unique de l'utilisateur
+      schema:
+        type: string
+        example: "alice_martin"
+    AdminHeader:
+      name: X-Admin
+      in: header
+      required: true
+      description: Doit valoir `"true"` pour autoriser les opérations d'administration
+      schema:
+        type: string
+        enum: ["true", "false"]
+        example: "true"
+
+  schemas:
+    User:
+      type: object
+      required: [id, name, last_active]
+      properties:
+        id:
+          type: string
+          description: Identifiant unique de l'utilisateur
+          example: "alice_martin"
+        name:
+          type: string
+          description: Nom complet de l'utilisateur
+          example: "Alice Martin"
+        last_active:
+          type: integer
+          description: Horodatage Unix de dernière activité
+          example: 1732536000
+
+    UserCreateInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Nom complet de l'utilisateur
+          example: "Alice Martin"
+        last_active:
+          type: integer
+          description: Horodatage Unix de dernière activité (0 par défaut)
+          example: 1732536000
+
+    UserUpdateInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nouveau nom de l'utilisateur
+          example: "Alice M."
+        last_active:
+          type: integer
+          description: Nouvel horodatage Unix de dernière activité
+          example: 1732622400
+
+    UserMutationResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    ActorDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        firstname:
+          type: string
+        lastname:
+          type: string
+        birthyear:
+          type: integer
+        films:
+          type: array
+          items:
+            type: string
+
+    MovieDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        director:
+          type: string
+        rating:
+          type: number
+          format: float
+        actors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActorDetail'
+
+    DetailedBookingDate:
+      type: object
+      properties:
+        date:
+          type: string
+          example: "20261201"
+        movies:
+          type: array
+          items:
+            $ref: '#/components/schemas/MovieDetail'
+
+    UserWithBookings:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            bookings:
+              type: array
+              items:
+                $ref: '#/components/schemas/DetailedBookingDate'
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

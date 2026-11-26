@@ -17,7 +17,7 @@ runtime:
         });
 
         test("Profil d'Alice conforme", function () {
-          expect(res.body.userid).to.equal("alice_martin");
+          expect(res.body.id).to.equal("alice_martin");
           expect(res.body.name).to.equal("Alice Martin");
         });
 

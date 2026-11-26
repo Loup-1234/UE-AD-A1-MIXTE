@@ -8,6 +8,7 @@ services:
     environment:
       - MOVIE_SERVICE_URL=http://movie:3001/graphql
       - SCHEDULE_SERVICE_URL=http://schedule:3202
+      - USER_SERVICE_URL=http://user:3203
       - MONGO_URI=mongodb://root:example@mongo:27017/
     depends_on:
       - movie
@@ -31,6 +32,10 @@ services:
       dockerfile: schedule/Dockerfile
     ports:
       - "3202:3202"
+    environment:
+      - MOVIE_SERVICE_URL=http://movie:3001/graphql
+    depends_on:
+      - movie
 
   user:
     build:
@@ -38,6 +43,10 @@ services:
       dockerfile: user/Dockerfile
     ports:
       - "3203:3203"
+    environment:
+      - BOOKING_SERVICE_URL=http://booking:3002/graphql
+    depends_on:
+      - booking
 
   mongo:
     image: mongo:7

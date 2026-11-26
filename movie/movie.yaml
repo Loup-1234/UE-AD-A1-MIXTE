@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: API du service Movie (GraphQL)
+  description: >
+    Service GraphQL de gestion du catalogue de films et d'acteurs (MongoDB).
+    Les mutations d'écriture (`create_movie`, `update_movie`, `update_movie_rate`, `delete_movie`)
+    nécessitent le header `X-Admin: true`.
+    Le schéma complet est défini dans `movie/movie.graphql`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001
+    description: Serveur local Movie (GraphQL)
+paths:
+  /:
+    get:
+      summary: Message d'accueil du service Movie
+      responses:
+        '200':
+          description: Service opérationnel
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<h1 style='color:blue'>Welcome to the Movie service!</h1>"
+
+  /graphql:
+    post:
+      summary: Exécuter une requête ou mutation GraphQL sur Movie
+      description: >
+        Point d'entrée unique GraphQL supportant :
+        - Queries : `all_movies`, `movie_with_id(_id)`, `all_actors`, `actors_with_id(_id)`
+        - Mutations (Admin requis via `X-Admin: true`) : `create_movie`, `update_movie`, `update_movie_rate`, `delete_movie`
+      parameters:
+        - name: X-Admin
+          in: header
+          required: false
+          description: Requis (`"true"`) pour toutes les mutations d'écriture
+          schema:
+            type: string
+            enum: ["true", "false"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphQLRequest'
+            examples:
+              getMovie:
+                summary: Récupérer un film par son ID
+                value:
+                  query: "query GetMovie($id: String!) { movie_with_id(_id: $id) { id title director rating actors { firstname lastname } } }"
+                  variables:
+                    id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+              createMovie:
+                summary: "Créer un film (nécessite X-Admin: true)"
+                value:
+                  query: "mutation CreateMovie($id: String, $title: String!, $director: String!, $rating: Float!) { create_movie(_id: $id, _title: $title, _director: $director, _rating: $rating) { id title director rating } }"
+                  variables:
+                    id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    title: "Interstellar"
+                    director: "Christopher Nolan"
+                    rating: 8.6
+              updateMovieRate:
+                summary: "Mettre à jour la note d'un film (nécessite X-Admin: true)"
+                value:
+                  query: "mutation UpdateRate($id: String!, $rate: Float!) { update_movie_rate(_id: $id, _rate: $rate) { id title rating } }"
+                  variables:
+                    id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    rate: 9.0
+      responses:
+        '200':
+          description: Réponse GraphQL (contient `data` et éventuellement `errors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphQLResponse'
+              examples:
+                movieFound:
+                  summary: Film trouvé
+                  value:
+                    data:
+                      movie_with_id:
+                        id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                        title: "Interstellar"
+                        director: "Christopher Nolan"
+                        rating: 9.0
+                        actors: []
+                adminRequired:
+                  summary: Mutation refusée sans privilèges admin
+                  value:
+                    data:
+                      create_movie: null
+                    errors:
+                      - message: "Admin privileges required"
+        '400':
+          description: Requête GraphQL malformée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphQLResponse'
+
+components:
+  schemas:
+    GraphQLRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Requête ou mutation GraphQL
+        variables:
+          type: object
+          additionalProperties: true
+          description: Variables associées à la requête
+    GraphQLResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string

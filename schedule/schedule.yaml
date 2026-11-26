@@ -1,0 +1,371 @@
+openapi: 3.0.3
+info:
+  title: API du service Schedule
+  description: >
+    Service REST de gestion des programmations (séances) de films.
+    Communique avec le service Movie (GraphQL) pour vérifier l'existence des films
+    et enrichir la programmation d'une date avec les détails complets des films.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3202
+    description: Serveur local Schedule
+tags:
+  - name: Santé
+    description: État du service
+  - name: Programmation
+    description: Gestion des séances et consultation enrichie
+paths:
+  /:
+    get:
+      tags: [Santé]
+      summary: Message d'accueil du service Schedule
+      responses:
+        '200':
+          description: Service opérationnel
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<h1 style='color:blue'>Welcome to the Showtime service!</h1>"
+
+  /json:
+    get:
+      tags: [Programmation]
+      summary: Récupérer toute la programmation
+      description: Retourne la liste complète des dates de projection et les identifiants des films associés.
+      responses:
+        '200':
+          description: Liste complète des séances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Showtime'
+              example:
+                - date: "20151130"
+                  movies:
+                    - "720d006c-3a57-4b6a-b18f-9b713b073f3c"
+                    - "a8034f44-aee4-44cf-b32c-74cf452aaaae"
+
+  /schedule/{movieid}:
+    get:
+      tags: [Programmation]
+      summary: Récupérer les dates de projection d'un film
+      description: Retourne la liste des dates (`YYYYMMDD`) auxquelles le film donné est programmé.
+      parameters:
+        - $ref: '#/components/parameters/MovieIdParam'
+      responses:
+        '200':
+          description: Dates de projection du film
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  description: Date au format YYYYMMDD
+              example: ["20151130", "20151203"]
+        '404':
+          description: Aucune séance trouvée pour ce film
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Movie ID not found"
+
+    post:
+      tags: [Programmation]
+      summary: Programmer un film à une date (Admin)
+      description: >
+        Ajoute une séance pour le film spécifié. Nécessite le header `X-Admin: true`.
+        Vérifie auprès du service Movie (GraphQL) que le film existe avant l'ajout.
+      parameters:
+        - $ref: '#/components/parameters/MovieIdParam'
+        - $ref: '#/components/parameters/AdminHeader'
+      requestBody:
+        required: true
+        description: Date de la séance à programmer
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleCreateInput'
+            example:
+              date: "20261201"
+      responses:
+        '200':
+          description: Séance ajoutée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Schedule added successfully"
+        '400':
+          description: Charge utile invalide (`date` manquante)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid payload: 'date' is required"
+        '403':
+          description: Privilèges administrateur requis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Admin privileges required"
+        '404':
+          description: Film inexistant dans le service Movie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Movie ID not found in Movie service"
+        '409':
+          description: Film déjà programmé à cette date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Movie already scheduled on this date"
+        '503':
+          description: Service Movie indisponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Movie service unavailable"
+
+    delete:
+      tags: [Programmation]
+      summary: Supprimer la programmation d'un film (Admin)
+      description: >
+        Retire un film de la programmation pour une date précise (si le paramètre de requête `date` est fourni)
+        ou pour toutes ses dates. Nécessite le header `X-Admin: true`.
+      parameters:
+        - $ref: '#/components/parameters/MovieIdParam'
+        - $ref: '#/components/parameters/AdminHeader'
+        - name: date
+          in: query
+          required: false
+          description: Date précise (`YYYYMMDD`) à retirer. Si omis, le film est retiré de toutes les dates.
+          schema:
+            type: string
+            example: "20261201"
+      responses:
+        '200':
+          description: Programmation supprimée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: "Schedule deleted successfully"
+        '403':
+          description: Privilèges administrateur requis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Admin privileges required"
+        '404':
+          description: Aucune entrée correspondante trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Schedule entry not found for this movie"
+
+  /schedule/date/{date}:
+    get:
+      tags: [Programmation]
+      summary: Récupérer les films programmés à une date
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+      responses:
+        '200':
+          description: Séance trouvée pour cette date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Showtime'
+              example:
+                date: "20261201"
+                movies:
+                  - "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        '404':
+          description: Aucune séance trouvée pour cette date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Date not found"
+
+  /schedule/date/{date}/details:
+    get:
+      tags: [Programmation]
+      summary: Récupérer la programmation détaillée d'une date (recoupement Movie)
+      description: >
+        Point d'entrée de recoupement : récupère les films programmés à la date demandée
+        puis interroge le service Movie (GraphQL) pour retourner leurs détails complets (titre, réalisateur, note, acteurs).
+      parameters:
+        - $ref: '#/components/parameters/DateParam'
+      responses:
+        '200':
+          description: Programmation enrichie avec les détails des films
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedShowtime'
+              example:
+                date: "20261201"
+                movies:
+                  - id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    title: "Interstellar"
+                    director: "Christopher Nolan"
+                    rating: 9.0
+                    actors: []
+        '404':
+          description: Aucune séance trouvée pour cette date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Date not found"
+        '503':
+          description: Service Movie indisponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Movie service unavailable"
+
+components:
+  parameters:
+    MovieIdParam:
+      name: movieid
+      in: path
+      required: true
+      description: Identifiant unique du film (UUID)
+      schema:
+        type: string
+        example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    DateParam:
+      name: date
+      in: path
+      required: true
+      description: Date de la séance au format YYYYMMDD
+      schema:
+        type: string
+        example: "20261201"
+    AdminHeader:
+      name: X-Admin
+      in: header
+      required: true
+      description: Doit valoir `"true"` pour autoriser les opérations d'administration
+      schema:
+        type: string
+        enum: ["true", "false"]
+        example: "true"
+
+  schemas:
+    ScheduleCreateInput:
+      type: object
+      required: [date]
+      properties:
+        date:
+          type: string
+          description: Date de projection au format YYYYMMDD
+          example: "20261201"
+
+    Showtime:
+      type: object
+      required: [date, movies]
+      properties:
+        date:
+          type: string
+          description: Date de projection au format YYYYMMDD
+          example: "20261201"
+        movies:
+          type: array
+          description: Liste des identifiants de films programmés ce jour-là
+          items:
+            type: string
+          example: ["f47ac10b-58cc-4372-a567-0e02b2c3d479"]
+
+    ActorDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "actor1"
+        firstname:
+          type: string
+          example: "Leonardo"
+        lastname:
+          type: string
+          example: "DiCaprio"
+        birthyear:
+          type: integer
+          example: 1974
+        films:
+          type: array
+          items:
+            type: string
+
+    MovieDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        title:
+          type: string
+          example: "Interstellar"
+        director:
+          type: string
+          example: "Christopher Nolan"
+        rating:
+          type: number
+          format: float
+          example: 9.0
+        actors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActorDetail'
+
+    DetailedShowtime:
+      type: object
+      required: [date, movies]
+      properties:
+        date:
+          type: string
+          example: "20261201"
+        movies:
+          type: array
+          items:
+            $ref: '#/components/schemas/MovieDetail'
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: API du service Booking (GraphQL)
+  description: >
+    Service GraphQL de gestion des réservations de séances (MongoDB).
+    Interagit avec User (vérification de l'utilisateur), Schedule (vérification de la date de séance)
+    et Movie (vérification du film et enrichissement des réservations détaillées).
+    La requête `all_bookings` est réservée aux administrateurs (`X-Admin: true`).
+    Le schéma complet est défini dans `booking/booking.graphql`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3002
+    description: Serveur local Booking (GraphQL)
+paths:
+  /:
+    get:
+      summary: Message d'accueil du service Booking
+      responses:
+        '200':
+          description: Service opérationnel
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<h1 style='color:blue'>Welcome to the Booking service!</h1>"
+
+  /graphql:
+    post:
+      summary: Exécuter une requête ou mutation GraphQL sur Booking
+      description: >
+        Point d'entrée unique GraphQL supportant :
+        - Queries : `booking_with_id(_userid)`, `detailed_booking_with_id(_userid)` (recoupement avec Movie),
+          `all_bookings` (Admin requis via `X-Admin: true`)
+        - Mutations : `create_booking(_userid, _date, _movie_id)` (vérifie User + Schedule + Movie),
+          `delete_booking(_userid)`
+      parameters:
+        - name: X-Admin
+          in: header
+          required: false
+          description: Requis (`"true"`) pour la requête `all_bookings`
+          schema:
+            type: string
+            enum: ["true", "false"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphQLRequest'
+            examples:
+              createBooking:
+                summary: Créer une réservation
+                value:
+                  query: "mutation CreateBooking($userid: String!, $date: String!, $movieId: String!) { create_booking(_userid: $userid, _date: $date, _movie_id: $movieId) { userid dates { date movies } } }"
+                  variables:
+                    userid: "alice_martin"
+                    date: "20261201"
+                    movieId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+              detailedBooking:
+                summary: Récupérer les réservations détaillées d'un utilisateur (recoupement Movie)
+                value:
+                  query: "query GetDetailedBooking($userid: String!) { detailed_booking_with_id(_userid: $userid) { userid dates { date movies { id title director rating } } } }"
+                  variables:
+                    userid: "alice_martin"
+              allBookingsAdmin:
+                summary: "Lister toutes les réservations (nécessite X-Admin: true)"
+                value:
+                  query: "query { all_bookings { userid dates { date movies } } }"
+      responses:
+        '200':
+          description: Réponse GraphQL (contient `data` et éventuellement `errors`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphQLResponse'
+              examples:
+                detailedBookingSuccess:
+                  summary: Réservation enrichie retournée
+                  value:
+                    data:
+                      detailed_booking_with_id:
+                        userid: "alice_martin"
+                        dates:
+                          - date: "20261201"
+                            movies:
+                              - id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                                title: "Interstellar"
+                                director: "Christopher Nolan"
+                                rating: 9.0
+                adminRequired:
+                  summary: Accès à all_bookings refusé sans privilèges admin
+                  value:
+                    data: null
+                    errors:
+                      - message: "Admin privileges required"
+        '400':
+          description: Requête GraphQL malformée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphQLResponse'
+
+components:
+  schemas:
+    GraphQLRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Requête ou mutation GraphQL
+        variables:
+          type: object
+          additionalProperties: true
+          description: Variables associées à la requête
+    GraphQLResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string

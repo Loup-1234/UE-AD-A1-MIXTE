@@ -1,0 +1,46 @@
+info:
+  name: Lister toutes les réservations (Admin)
+  type: graphql
+  seq: 5
+
+graphql:
+  method: POST
+  url: http://localhost:3002/graphql
+  headers:
+    - name: X-Admin
+      value: "true"
+  body:
+    query: |-
+      query AllBookings {
+        all_bookings {
+          userid
+          dates {
+            date
+            movies
+          }
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200 sans erreur GraphQL", function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.errors).to.be.undefined;
+        });
+
+        test("La liste contient les réservations d'Alice", function () {
+          const bookings = res.body.data.all_bookings;
+          expect(bookings).to.be.an("array");
+          const alice = bookings.find((b) => b.userid === "alice_martin");
+          expect(alice).to.not.be.undefined;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

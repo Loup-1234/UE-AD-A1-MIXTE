@@ -1,0 +1,34 @@
+info:
+  name: Consulter le profil d'Alice avec ses réservations
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: http://localhost:3203/user/alice_martin/bookings
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Statut 200", function () {
+          expect(res.status).to.equal(200);
+        });
+
+        test("Profil d'Alice enrichi de sa réservation Interstellar", function () {
+          expect(res.body.id).to.equal("alice_martin");
+          expect(res.body.name).to.equal("Alice Martin");
+          expect(res.body.bookings).to.be.an("array");
+          const entry = res.body.bookings.find((b) => b.date === "20261201");
+          expect(entry).to.not.be.undefined;
+          expect(entry.movies[0].title).to.equal("Interstellar");
+          expect(entry.movies[0].rating).to.equal(9.0);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

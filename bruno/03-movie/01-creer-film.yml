@@ -6,6 +6,9 @@ info:
 graphql:
   method: POST
   url: http://localhost:3001/graphql
+  headers:
+    - name: X-Admin
+      value: "true"
   body:
     query: |-
       mutation CreateMovie($id: String, $title: String!, $director: String!, $rating: Float!) {

@@ -27,7 +27,8 @@ runtime:
         });
 
         test("Confirmation de création du compte", function () {
-          expect(res.body.message).to.equal("User added/updated successfully");
+          expect(res.body.message).to.equal("User added successfully");
+          expect(res.body.user.id).to.equal("alice_martin");
         });
 
 settings:

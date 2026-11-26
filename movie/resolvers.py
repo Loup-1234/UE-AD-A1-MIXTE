@@ -1,6 +1,7 @@
 import json
 import uuid
 import os
+from graphql import GraphQLError
 from pymongo import MongoClient
 
 MONGO_URI = os.getenv(
@@ -30,19 +31,31 @@ if actors_collection.count_documents({}) == 0 and actors:
     actors_collection.insert_many(actors)
     print("Acteurs insérés dans MongoDB !")
 
+
+def require_admin(info):
+    req = (info.context or {}).get("request")
+    if not req or req.headers.get("X-Admin", "").lower() != "true":
+        raise GraphQLError("Admin privileges required")
+
+
 def movie_with_id(_, info, _id):
     return collection.find_one({"id": _id})
 
+
 def all_movies(_, info):
     return list(collection.find())
-    
+
+
 def actors_with_id(_, info, _id):
     return actors_collection.find_one({"id": _id})
+
 
 def all_actors(_, info):
     return list(actors_collection.find())
 
+
 def create_movie(_, info, _title, _director, _rating, _id=None):
+    require_admin(info)
     movie_id = _id if _id else str(uuid.uuid4())
 
     new_movie = {
@@ -56,7 +69,9 @@ def create_movie(_, info, _title, _director, _rating, _id=None):
 
     return new_movie
 
+
 def update_movie_rate(_, info, _id, _rate):
+    require_admin(info)
     collection.update_one(
         {"id": _id},
         {"$set": {"rating": float(_rate)}}
@@ -64,7 +79,9 @@ def update_movie_rate(_, info, _id, _rate):
 
     return collection.find_one({"id": _id})
 
+
 def update_movie(_, info, _id, _title=None, _director=None, _rating=None):
+    require_admin(info)
     newvalues = {}
 
     if _title is not None:
@@ -84,9 +101,12 @@ def update_movie(_, info, _id, _title=None, _director=None, _rating=None):
 
     return collection.find_one({"id": _id})
 
+
 def delete_movie(_, info, _id):
+    require_admin(info)
     result = collection.delete_one({"id": _id})
     return result.deleted_count > 0
+
 
 def resolve_actors_in_movie(movie, info):
     return list(actors_collection.find({"films": movie["id"]}))
